@@ -1,0 +1,109 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# Load the data
+df = pd.read_csv('/Users/arneshanicholas/Downloads/player_box_2024.csv')
+
+# Add the player's name
+df['player_name'] = 'angel reese'
+
+# Fill missing values for opponent team information
+df['opponent_team_id'] = df['opponent_team_id'].fillna(0)  # Fill missing opponent team IDs
+df['opponent_team_score'] = df['opponent_team_score'].fillna(0)  # Fill missing opponent team scores
+
+# Handle missing values in other columns
+df['points'] = df['points'].fillna(0)
+df['field_goals_made'] = df['field_goals_made'].fillna(0)
+df['field_goals_attempted'] = df['field_goals_attempted'].fillna(0)
+df['three_point_field_goals_made'] = df['three_point_field_goals_made'].fillna(0)
+df['free_throws_made'] = df['free_throws_made'].fillna(0)
+df['rebounds'] = df['rebounds'].fillna(0)
+df['assists'] = df['assists'].fillna(0)
+df['steals'] = df['steals'].fillna(0)
+df['blocks'] = df['blocks'].fillna(0)
+df['turnovers'] = df['turnovers'].fillna(0)
+df['plus_minus'] = df['plus_minus'].fillna(0)
+df['shooting_efficiency'] = (df['field_goals_made'] / df['field_goals_attempted']).fillna(0)  # Handle any divisions by zero
+
+# Create the label: 1 if rebounds > 14.5, else 0
+threshold = 20.5
+df['over_13_5'] = (df['points'] > threshold).astype(int)
+
+# Select features for the model
+features = [
+    'minutes', 'field_goals_made', 'field_goals_attempted', 'three_point_field_goals_made',
+    'free_throws_made', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 
+    'plus_minus', 'shooting_efficiency', 'home_away', 'opponent_team_id', 'opponent_team_score'
+]
+
+X = df[features]
+y = df['over_13_5']
+
+# Encode categorical features like 'home_away'
+X = pd.get_dummies(X, columns=['home_away'], drop_first=True)
+
+# Drop rows with any NaN values
+X = X.dropna()
+y = y[X.index]  # Ensure y matches the dropped X
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# Initialize and train the Random Forest Classifier
+model = RandomForestClassifier(random_state=42)
+model.fit(X_train, y_train)
+
+# Make predictions
+y_pred = model.predict(X_test)
+# Convert numerical predictions to textual labels
+prediction_labels = ['over' if pred == 1 else 'under' for pred in y_pred]
+
+# Print out predictions
+#for i, label in enumerate(prediction_labels):
+    #print(f"Prediction for game {i+1}: {label}")
+
+# Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred)
+class_report = classification_report(y_test, y_pred)
+
+print(f"Accuracy: {accuracy:.2f}")
+print("Confusion Matrix:")
+print(conf_matrix)
+print("Classification Report:")
+print(class_report)
+
+# Function to predict whether the player will score over or under the threshold
+def predict_performance(data):
+    # Ensure the data has the same features and encoding as the training data
+    data = pd.get_dummies(data, columns=['home_away'], drop_first=True)
+    # Add missing columns with default values of 0
+    missing_cols = set(X.columns) - set(data.columns)
+    for col in missing_cols:
+        data[col] = 0
+    data = data[X.columns]  # Ensure the feature columns match the model's expectations
+    prediction = model.predict(data)
+    return 'over' if prediction[0] == 1 else 'under'
+
+# Example data for tomorrow's game
+last_game_data = pd.DataFrame({
+    'minutes': [25,],
+    'field_goals_made': [4,3,4,6,4],
+    'field_goals_attempted': [16,110,9,16,12],
+    'three_point_field_goals_made': [0,0,0,0,0],
+    'free_throws_made': [3,1,2,5,4],
+    'points': [11,7,10,17,12],
+    'assists': [1,2,2,3,3],
+    'steals': [0,1,1,2,2],
+    'blocks': [2,0,0,0,0],
+    'turnovers': [3,6,4,6,1],
+    'plus_minus': [4,-3,-7,0,-16],
+    'home_away': ['home', 'home','home','away','away'],  # or 'away'
+    'opponent_team_id': [],  # Replace with actual opponent team ID
+    'opponent_team_score': [61,93]  # Replace with actual opponent team score
+})
+
+# Predict the performance for tomorrow's game
+print("Prediction for tomorrow's game:", predict_performance(last_game_data))
